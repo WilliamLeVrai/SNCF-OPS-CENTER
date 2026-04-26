@@ -1,0 +1,8 @@
+{
+  "name": "sncf-ops",
+  "version": "1.0.0",
+  "main": "sncf.js",
+  "scripts": {
+    "start": "node sncf.js"
+  }
+}

@@ -869,7 +869,7 @@ body {
 var currentStop  = null;
 var allDepartures = [];
 var refreshTimer  = null;
-var refreshSecs   = 30;
+var refreshSecs   = 120;
 var refreshLeft   = 30;
 var selectedVjId  = null;
 

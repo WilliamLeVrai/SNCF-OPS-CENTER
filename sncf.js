@@ -713,12 +713,16 @@ function switchVtab(el){
   document.querySelectorAll(".vtab").forEach(function(t){t.classList.remove("active")});
   document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active")});
   el.classList.add("active");
-  document.getElementById("view-"+el.dataset.v).classList.add("active");
-  if(el.dataset.v==="arrivals"&&G.stop)loadArrivals(G.stop.id);
-  if(el.dataset.v==="disruptions")loadDisruptions();
-  if(el.dataset.v==="schedules"&&G.stop)loadSchedules(G.stop.id);
-  if(el.dataset.v==="lines"&&G.stop)loadLines(G.stop.id);
-  if(el.dataset.v==="sysinfo")refreshStats();
+  
+  // On utilise dataset.v qui contient l'identifiant sans accent (ex: "arrivals")
+  var targetView = el.dataset.v;
+  document.getElementById("view-" + targetView).classList.add("active");
+  
+  if(targetView === "arrivals" && G.stop) loadArrivals(G.stop.id);
+  if(targetView === "disruptions") loadDisruptions();
+  if(targetView === "schedules" && G.stop) loadSchedules(G.stop.id);
+  if(targetView === "lines" && G.stop) loadLines(G.stop.id);
+  if(targetView === "sysinfo") refreshStats();
 }
 function setDetailTab(v){
   var el=document.querySelector(".vtab[data-v='"+v+"']");

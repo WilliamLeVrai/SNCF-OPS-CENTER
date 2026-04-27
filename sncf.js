@@ -9,14 +9,15 @@ const http  = require("http");
 const https = require("https");
 const url   = require("url");
 
-const API_KEY  = process.env.SNCF_KEY || process.argv[2];
+const API_KEY = process.env.SNCF_API_KEY || process.env.SNCF_KEY || process.argv[2];
 const PORT     = process.env.PORT || 3333;
 const BASE_URL = "api.sncf.com";
 const BASE_PATH = "/v1/coverage/sncf/";
 
 if (!API_KEY) {
   console.error("\n❌  Clé API manquante !");
-  console.error("    Usage : node sncf.js TA_CLE_API\n");
+  console.error("👉 Ajoute SNCF_API_KEY dans Render (Environment Variables)");
+  console.error("👉 Ou lance : node sncf.js TA_CLE_API\n");
   process.exit(1);
 }
 

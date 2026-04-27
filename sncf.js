@@ -259,7 +259,7 @@ server.listen(PORT, "0.0.0.0", async () => {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INTERFACE HTML
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const HTML = \`<!DOCTYPE html>
+const HTML = `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -714,7 +714,7 @@ function setDetailTab(v){
   var el=document.querySelector(".vtab[data-v='"+v+"']");
   if(el)switchVtab(el);
   document.querySelectorAll(".ttab").forEach(function(t){t.classList.remove("active")});
-  event.target.classList.add("active");
+  if(event && event.target) event.target.classList.add("active");
 }
 
 // ── SEARCH ───────────────────────────────────────────
@@ -737,7 +737,6 @@ async function doSearch(q){
     var rawPlaces = d.places || [];
     if(!rawPlaces.length){hideSugg();return;}
     
-    // Correction : L'API peut renvoyer soit directement stop_area, soit l'objet place
     var html=rawPlaces.map(function(p){
       var item = p.stop_area || p;
       var name = p.name || item.name;
@@ -782,7 +781,6 @@ async function loadDeps(stopId,name,showLoad){
     G.deps=d.departures||[];
     renderDeps(G.deps,name);
     renderBoard(G.deps,name);
-    // Auto-charger aussi les horaires si l'onglet est actif
     var schedTab=document.querySelector(".vtab[data-v='schedules']");
     if(schedTab&&schedTab.classList.contains("active"))loadSchedules(stopId);
     var linesTab=document.querySelector(".vtab[data-v='lines']");
@@ -857,7 +855,6 @@ function renderDeps(deps,name){
     el.addEventListener("click",function(){
       document.querySelectorAll(".tcard").forEach(function(c){c.classList.remove("sel");});
       this.classList.add("sel");
-      // Switch to train tab
       document.querySelectorAll(".vtab").forEach(function(t){t.classList.remove("active");});
       document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active");});
       document.querySelector(".vtab[data-v='train']").classList.add("active");
@@ -1158,19 +1155,6 @@ function renderSysInfo(d){
       +'<div class="si-card"><div class="si-label">Cache actif</div><div class="si-value">'+(d.cacheSize||0)+'</div><div class="si-sub">Entrées en mémoire</div></div>'
       +'<div class="si-card ok"><div class="si-label">Uptime</div><div class="si-value" style="font-size:.9rem">'+uptimeStr+'</div><div class="si-sub">Depuis démarrage</div></div>'
     +'</div>'
-    +'<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:4px">'
-      +'<div style="font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px">STRATÉGIE CACHE</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:.72rem">'
-        +'<div style="color:var(--text)">🔍 Recherche gares</div><div style="color:var(--blue2);font-family:JetBrains Mono,monospace">5 min</div>'
-        +'<div style="color:var(--text)">🚄 Départs (temps réel)</div><div style="color:var(--blue2);font-family:JetBrains Mono,monospace">20 sec</div>'
-        +'<div style="color:var(--text)">🚉 Arrivées</div><div style="color:var(--blue2);font-family:JetBrains Mono,monospace">20 sec</div>'
-        +'<div style="color:var(--text)">🕐 Horaires</div><div style="color:var(--blue2);font-family:JetBrains Mono,monospace">20 sec</div>'
-        +'<div style="color:var(--text)">🛑 Détail trajet</div><div style="color:var(--blue2);font-family:JetBrains Mono,monospace">30 sec</div>'
-        +'<div style="color:var(--text)">⚠️ Perturbations</div><div style="color:var(--blue2);font-family:JetBrains Mono,monospace">1 min</div>'
-        +'<div style="color:var(--text)">🗺 Lignes</div><div style="color:var(--blue2);font-family:JetBrains Mono,monospace">10 min</div>'
-        +'<div style="color:var(--text)">🧭 Itinéraires</div><div style="color:var(--blue2);font-family:JetBrains Mono,monospace">2 min</div>'
-      +'</div>'
-    +'</div>'
     +'</div>';
 }
 
@@ -1193,7 +1177,6 @@ async function showTrain(vjId,hs,mode,dir,col){
     var mat=getMat(hs,mode);
     var stops=vj.stop_times||[];
 
-    // Delay chart data
     var delayData=stops.map(function(st){
       var imp=impacted.find(function(x){return x.stop_point&&x.stop_point.id===st.stop_point.id;});
       var bT=imp?(imp.base_departure_time||imp.base_arrival_time):st.departure_time||st.arrival_time;
@@ -1202,7 +1185,6 @@ async function showTrain(vjId,hs,mode,dir,col){
     });
     var maxDelay=delayData.reduce(function(m,d){return Math.max(m,d.delay);},0);
 
-    // Hero
     var heroHTML='<div class="train-hero" data-num="'+esc(hs)+'">'
       +'<div class="hero-num" style="color:'+col+'">'+esc(hs)+'</div>'
       +'<div class="hero-dir">→ '+esc((dir||"").split("(")[0].trim())+'</div>'
@@ -1210,13 +1192,11 @@ async function showTrain(vjId,hs,mode,dir,col){
         +'<span class="hbadge" style="background:'+col+'15;color:'+col+';border-color:'+col+'30">'+esc(mode)+'</span>'
         +(mat?'<span class="hbadge" style="background:#0f2040;color:#5ba3f5;border-color:#1a3566">'+esc(mat)+'</span>':"")
         +'<span class="hbadge" style="background:#0d1c2e;color:var(--muted);border-color:var(--border)">'+stops.length+' arrêts</span>'
-        +(maxDelay>0?'<span class="hbadge" style="background:rgba(255,145,0,.08);color:var(--orange);border-color:rgba(255,145,0,.2)">+'+maxDelay+'min max</span>':"")
       +'</div>'
       +'</div>';
 
     var alertHTML='<div class="alert-box'+(disrupMsg?" on":"")+'"><strong>⚡ PERTURBATION</strong>'+esc(disrupMsg)+'</div>';
 
-    // Chart
     var chartHTML="";
     if(maxDelay>0){
       var bars=delayData.map(function(d){
@@ -1228,7 +1208,6 @@ async function showTrain(vjId,hs,mode,dir,col){
       chartHTML='<div class="chart-wrap on"><div class="chart-title">📊 Évolution retard par arrêt</div><div class="chart-bars">'+bars+'</div></div>';
     }
 
-    // Timeline
     var prevDelay=0,delayStarted=false;
     var tlHTML='<div class="timeline">';
     stops.forEach(function(st,i){
@@ -1272,10 +1251,7 @@ async function showTrain(vjId,hs,mode,dir,col){
   }
 }
 
-// ── INIT ──────────────────────────────────────────────
 loadDisruptions();
 </script>
 </body>
-</html>\`;
-
-}
+</html>\`;`

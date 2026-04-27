@@ -143,32 +143,42 @@ const server = http.createServer(async (req, res) => {
       log("✅", (data.places||[]).length + " gare(s) [" + (stats.cached > 0 ? "cache" : "API") + "]");
     }
 
-    else if (path === "/api/departures") {
+else if (path === "/api/departures") {
       const dt = nowNavitia();
-      log("🚄", "Departs: " + (q.stop||"").slice(-20));
+      log("🚄", "Requête départs pour: " + q.stop);
+      
       data = await sncfGet(
         "stop_areas/" + encodeURIComponent(q.stop) +
-        "/departures?from_datetime=" + dt + "&count=40&data_freshness=realtime&depth=2",
+        "/departures?from_datetime=" + dt + "&count=40&data_freshness=base_schedule&depth=2",
         "departures"
       );
-      log("✅", (data.departures||[]).length + " depart(s)");
+
+      // Log de debug pour voir le contenu réel reçu
+      const count = (data.departures || []).length;
+      log("✅", count + " départ(s) trouvé(s)");
+      
+      if (count === 0 && data.notes) {
+        log("⚠️", "Note API: " + JSON.stringify(data.notes));
+      }
     }
 
     else if (path === "/api/arrivals") {
       const dt = nowNavitia();
-      log("🚉", "Arrivees: " + (q.stop||"").slice(-20));
+      log("🚉", "Requête arrivées pour: " + q.stop);
+
       data = await sncfGet(
         "stop_areas/" + encodeURIComponent(q.stop) +
-        "/arrivals?from_datetime=" + dt + "&count=40&data_freshness=realtime&depth=2",
+        "/arrivals?from_datetime=" + dt + "&count=40&data_freshness=base_schedule&depth=2",
         "arrivals"
       );
-      log("✅", (data.arrivals||[]).length + " arrivee(s)");
+
+      log("✅", (data.arrivals || []).length + " arrivée(s) trouvée(s)");
     }
 
     else if (path === "/api/vehicle") {
       log("🛑", "Trajet: " + (q.id||"").slice(-20));
       data = await sncfGet(
-        "vehicle_journeys/" + encodeURIComponent(q.id) + "?data_freshness=realtime",
+        "vehicle_journeys/" + encodeURIComponent(q.id) + "?data_freshness=base_schedule",
         "vehicle"
       );
       log("✅", (data.vehicle_journeys&&data.vehicle_journeys[0]&&data.vehicle_journeys[0].stop_times&&data.vehicle_journeys[0].stop_times.length||0) + " arret(s)");

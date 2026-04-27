@@ -741,16 +741,24 @@ document.addEventListener("click",function(e){if(!e.target.closest(".search-wrap
 function hideSugg(){document.getElementById("sugg").classList.remove("on");}
 
 async function doSearch(q){
+  console.log("Tentative de recherche pour:", q); // Debug
   try{
-    var r=await fetch("/api/places?q="+encodeURIComponent(q));
-    var d=await r.json();
-    var rawPlaces = d.places || [];
-    if(!rawPlaces.length){hideSugg();return;}
+    var r = await fetch("/api/places?q="+encodeURIComponent(q));
+    var d = await r.json();
     
-    var html=rawPlaces.map(function(p){
-      var item = p.stop_area || p;
-      var name = p.name || item.name;
-      var id = item.id;
+    // On vérifie ce que l'API nous donne vraiment
+    var rawPlaces = d.places || [];
+    console.log("Résultats API reçus:", rawPlaces);
+
+    if(!rawPlaces.length){
+      hideSugg();
+      return;
+    }
+    
+    var html = rawPlaces.map(function(p){
+      // Sécurité : l'ID peut être à plusieurs endroits selon le type de résultat
+      var id = p.id;
+      var name = p.name;
       var reg = (p.administrative_regions && p.administrative_regions[0]) ? p.administrative_regions[0].name : "";
       
       return '<div class="sug" data-id="'+esc(id)+'" data-name="'+esc(name)+'">'
@@ -760,19 +768,23 @@ async function doSearch(q){
         +'</div>';
     }).join("");
     
-    document.getElementById("sugg").innerHTML=html;
+    document.getElementById("sugg").innerHTML = html;
     document.getElementById("sugg").classList.add("on");
+
+    // On ré-attache les clics sur les nouvelles suggestions
     document.querySelectorAll(".sug").forEach(function(el){
-      el.addEventListener("click",function(){
-        document.getElementById("search").value=this.dataset.name;
+      el.onclick = function(){
+        document.getElementById("search").value = this.dataset.name;
         hideSugg();
-        loadDeps(this.dataset.id,this.dataset.name,true);
-      });
+        loadDeps(this.dataset.id, this.dataset.name, true);
+      };
     });
-  }catch(e){hideSugg();}
-  finally{
+  } catch(e) {
+    console.error("Erreur critique lors de la recherche:", e);
+    hideSugg();
+  } finally {
     document.getElementById("sspin").classList.remove("on");
-    document.getElementById("sico").style.display="";
+    document.getElementById("sico").style.display = "";
   }
 }
 

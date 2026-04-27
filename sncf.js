@@ -1,29 +1,38 @@
 #!/usr/bin/env node
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SNCF OPS CENTER — FULL DASHBOARD EDITION (V3)
+// SNCF OPS CENTER — Serveur avec cache intelligent
+// Restauré et Corrigé pour Render.com
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 const http  = require("http");
 const https = require("https");
 const url   = require("url");
 
+// Priorité aux variables d'environnement Render
 const API_KEY = process.env.SNCF_API_KEY || process.env.SNCF_KEY || process.argv[2];
 const PORT     = process.env.PORT || 10000;
 const BASE_URL = "api.sncf.com";
 const BASE_PATH = "/v1/coverage/sncf/";
 
 if (!API_KEY) {
-  console.error("\n❌ Erreur: Clé API manquante dans les variables d'environnement !");
+  console.error("\n❌ Clé API manquante !");
   process.exit(1);
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CACHE & STATS
+// CACHE — économise les requêtes
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const cache = new Map();
 const CACHE_TTL = {
-  places: 300000, departures: 20000, arrivals: 20000, vehicle: 30000, 
-  disruptions: 60000, traffic: 60000, schedules: 20000, lines: 600000, journeys: 120000
+  places:       300000, 
+  departures:   20000,      
+  arrivals:     20000,       
+  vehicle:      30000,       
+  disruptions:  60000,       
+  traffic:      60000,       
+  schedules:    20000,       
+  lines:        600000,  
+  journeys:     120000,   
 };
 
 function cacheGet(key) {
@@ -39,14 +48,18 @@ function cacheSet(key, data, ttl) {
 const stats = { total: 0, cached: 0, api: 0, errors: 0, startTime: Date.now() };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// API HELPERS
+// APPEL API SNCF
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const pad = n => String(n).padStart(2, "0");
 const log = (e, m) => console.log("[" + new Date().toLocaleTimeString() + "] " + e + "  " + m);
 
 function sncfGet(path, ttlKey) {
   const cached = cacheGet(path);
-  if (cached) { stats.cached++; return Promise.resolve(cached); }
+  if (cached) {
+    stats.cached++;
+    return Promise.resolve(cached);
+  }
+
   stats.api++;
   return new Promise((resolve, reject) => {
     const opts = {
@@ -77,23 +90,27 @@ function nowNavitia() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SERVEUR
+// SERVEUR HTTP
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const server = http.createServer(async (req, res) => {
   const parsed = url.parse(req.url, true);
   const path   = parsed.pathname;
   const q      = parsed.query;
+
   res.setHeader("Access-Control-Allow-Origin", "*");
+  stats.total++;
 
   if (path === "/" || path === "/index.html") {
     res.setHeader("Content-Type", "text/html; charset=utf-8");
-    return res.end(HTML);
+    res.end(HTML);
+    return;
   }
 
   res.setHeader("Content-Type", "application/json");
 
   if (path === "/api/stats") {
-    return res.end(JSON.stringify({ ...stats, uptime: Math.round((Date.now() - stats.startTime) / 1000) }));
+    res.end(JSON.stringify({ ...stats, uptime: Math.round((Date.now() - stats.startTime) / 1000) }));
+    return;
   }
 
   try {
@@ -102,32 +119,36 @@ const server = http.createServer(async (req, res) => {
 
     if (path === "/api/places") {
       data = await sncfGet("places?q=" + encodeURIComponent(q.q) + "&type[]=stop_area&count=8", "places");
-    } else if (path === "/api/departures") {
+    }
+    else if (path === "/api/departures") {
       data = await sncfGet("stop_areas/" + encodeURIComponent(q.stop) + "/departures?from_datetime=" + dt + "&count=40&data_freshness=base_schedule&depth=2", "departures");
-    } else if (path === "/api/arrivals") {
+    }
+    else if (path === "/api/arrivals") {
       data = await sncfGet("stop_areas/" + encodeURIComponent(q.stop) + "/arrivals?from_datetime=" + dt + "&count=40&data_freshness=base_schedule&depth=2", "arrivals");
-    } else if (path === "/api/vehicle") {
+    }
+    else if (path === "/api/vehicle") {
       data = await sncfGet("vehicle_journeys/" + encodeURIComponent(q.id) + "?data_freshness=base_schedule", "vehicle");
-    } else if (path === "/api/disruptions") {
+    }
+    else if (path === "/api/disruptions") {
       data = await sncfGet("disruptions?count=50&depth=2", "disruptions");
-    } else if (path === "/api/schedules") {
-      data = await sncfGet("stop_areas/" + encodeURIComponent(q.stop) + "/stop_schedules?from_datetime=" + dt + "&items_per_schedule=3", "schedules");
-    } else if (path === "/api/lines") {
-      data = await sncfGet("stop_areas/" + encodeURIComponent(q.stop) + "/lines", "lines");
-    } else if (path === "/api/journeys") {
-      data = await sncfGet("journeys?from=" + encodeURIComponent(q.from) + "&to=" + encodeURIComponent(q.to) + "&datetime=" + dt + "&count=3", "journeys");
-    } else {
+    }
+    else {
       res.writeHead(404);
-      return res.end(JSON.stringify({error: "404"}));
+      res.end(JSON.stringify({error: "Not found"}));
+      return;
     }
     res.end(JSON.stringify(data));
-  } catch(e) { res.end(JSON.stringify({error: e.message})); }
+  } catch(e) {
+    res.end(JSON.stringify({error: e.message}));
+  }
 });
 
-server.listen(PORT, "0.0.0.0", () => log("READY", "SNCF Ops Center sur port " + PORT));
+server.listen(PORT, "0.0.0.0", () => {
+  log("READY", "SNCF OPS CENTER sur port " + PORT);
+});
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// FRONT-END (HTML/CSS/JS)
+// INTERFACE HTML
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const HTML = `<!DOCTYPE html>
 <html lang="fr">
@@ -148,8 +169,8 @@ const HTML = `<!DOCTYPE html>
 body{background:var(--bg);color:var(--text);font-family:"DM Sans",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 
 .topbar{height:52px;background:var(--panel);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:16px;z-index:100}
-.brand{font-family:"Bebas Neue",sans-serif;font-size:1.4rem;color:var(--blue2);letter-spacing:.1em}
-.clock{font-family:"JetBrains Mono",monospace;font-size:.85rem;color:var(--cyan);margin-left:auto}
+.brand{font-family:"Bebas Neue",sans-serif;font-size:1.5rem;color:var(--blue2);letter-spacing:.1em}
+.clock{font-family:"JetBrains Mono",monospace;font-size:.9rem;color:var(--cyan);margin-left:auto}
 
 .search-wrap{position:relative;flex:1;max-width:380px}
 .search-wrap input{width:100%;background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:white;outline:none;font-size:14px}
@@ -162,37 +183,37 @@ body{background:var(--bg);color:var(--text);font-family:"DM Sans",sans-serif;hei
 .sidebar-head{padding:15px;border-bottom:1px solid var(--border)}
 .tlist{flex:1;overflow-y:auto;padding:8px}
 
-.detail{flex:1;background:var(--bg);overflow-y:auto;padding:20px;display:flex;flex-direction:column}
+.detail{flex:1;background:var(--bg);overflow-y:auto;padding:25px;display:flex;flex-direction:column}
 .tabs{display:flex;background:var(--panel);border-bottom:1px solid var(--border);flex-shrink:0}
-.tab{padding:12px 20px;font-size:11px;font-weight:700;text-transform:uppercase;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:0.2s}
+.tab{padding:14px 20px;font-size:11px;font-weight:700;text-transform:uppercase;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:0.2s}
 .tab.active{color:var(--blue2);border-bottom-color:var(--blue2)}
 
 .view{display:none;flex:1}.view.active{display:block}
 
-.tcard{background:var(--card);border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:6px;padding:12px;margin-bottom:8px;cursor:pointer;transition:0.1s}
-.tcard:hover{border-color:var(--blue2);background:var(--card2)}
-.tcard.sel{background:var(--card2);border-left-width:6px}
+.tcard{background:var(--card);border:1px solid var(--border);border-left:4px solid var(--blue);border-radius:6px;padding:14px;margin-bottom:8px;cursor:pointer;transition:0.1s}
+.tcard:hover{border-color:var(--blue2);background:var(--card2);transform:translateX(2px)}
+.tcard.sel{background:var(--card2);border-left-width:6px;border-color:var(--blue2)}
 
-.kpis{display:flex;gap:10px;margin-top:10px}
-.kpi{flex:1;background:var(--card);padding:8px;border-radius:6px;text-align:center;border:1px solid var(--border)}
-.kpi-v{font-family:"JetBrains Mono",monospace;font-size:18px;font-weight:700}
-.kpi-l{font-size:9px;color:var(--muted);text-transform:uppercase}
+.kpis{display:flex;gap:10px;margin-top:12px}
+.kpi{flex:1;background:var(--card);padding:10px;border-radius:8px;text-align:center;border:1px solid var(--border)}
+.kpi-v{font-family:"JetBrains Mono",monospace;font-size:20px;font-weight:700}
+.kpi-l{font-size:10px;color:var(--muted);text-transform:uppercase;margin-top:2px}
 
-.timeline{border-left:2px solid var(--border);margin-left:20px;padding-left:20px}
-.stop-row{margin-bottom:20px;position:relative}
-.stop-row::before{content:'';position:absolute;left:-26px;top:4px;width:10px;height:10px;background:var(--blue);border-radius:50%}
-.stop-time{font-family:"JetBrains Mono",monospace;color:var(--green);font-size:14px;margin-right:10px}
+.timeline{border-left:2px solid var(--border);margin-left:25px;padding-left:25px;margin-top:20px}
+.stop-row{margin-bottom:25px;position:relative}
+.stop-row::before{content:'';position:absolute;left:-31px;top:5px;width:10px;height:10px;background:var(--blue);border:2px solid var(--bg);border-radius:50%}
+.stop-time{font-family:"JetBrains Mono",monospace;color:var(--green);font-size:15px;margin-right:12px}
 
 @keyframes spin{to{transform:rotate(360deg)}}
-.loader{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 1s linear infinite;margin:20px auto}
+.loader{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 1s linear infinite;margin:20px auto}
 </style>
 </head>
 <body>
 
 <div class="topbar">
-  <div class="brand">🚄 SNCF OPS</div>
+  <div class="brand">🚄 SNCF OPS CENTER</div>
   <div class="search-wrap">
-    <input type="text" id="search" placeholder="Rechercher une gare..." autocomplete="off">
+    <input type="text" id="search" placeholder="Rechercher une gare d'observation..." autocomplete="off">
     <div class="sugg" id="sugg"></div>
   </div>
   <div class="clock" id="clock">00:00:00</div>
@@ -208,7 +229,7 @@ body{background:var(--bg);color:var(--text);font-family:"DM Sans",sans-serif;hei
 <div class="workspace">
   <div class="sidebar">
     <div class="sidebar-head">
-      <div id="gare-name" style="font-weight:700;font-size:14px">📍 Aucune gare</div>
+      <div id="gare-name" style="font-weight:700;font-size:16px;color:var(--blue2)">📍 Aucune sélection</div>
       <div class="kpis">
         <div class="kpi"><div class="kpi-v" id="kpi-total">0</div><div class="kpi-l">Total</div></div>
         <div class="kpi" style="color:var(--green)"><div class="kpi-v" id="kpi-ok">0</div><div class="kpi-l">OK</div></div>
@@ -216,32 +237,28 @@ body{background:var(--bg);color:var(--text);font-family:"DM Sans",sans-serif;hei
       </div>
     </div>
     <div class="tlist" id="tlist">
-      <div style="padding:40px;text-align:center;color:var(--muted);font-size:13px">Saisissez une ville ou une gare pour commencer.</div>
+      <div style="padding:50px 20px;text-align:center;color:var(--muted);font-size:14px">Saisissez une ville ou une gare.</div>
     </div>
   </div>
   <div class="detail">
     <div id="view-departures" class="view active">
-      <div style="text-align:center;margin-top:100px;color:var(--muted)">Sélectionnez une gare.</div>
+      <div style="text-align:center;margin-top:150px;color:var(--muted)">Aucun train sélectionné.</div>
     </div>
     <div id="view-arrivals" class="view">
-      <div style="text-align:center;margin-top:100px;color:var(--muted)">Cliquez sur l'onglet pour voir les arrivées.</div>
+      <div style="text-align:center;margin-top:150px;color:var(--muted)">Cliquez sur l'onglet pour voir les arrivées.</div>
     </div>
     <div id="view-train" class="view">
-      <div style="text-align:center;margin-top:100px;color:var(--muted)">Sélectionnez un train dans la liste de gauche pour voir son trajet.</div>
+      <div style="text-align:center;margin-top:150px;color:var(--muted)">Sélectionnez un train dans la liste de gauche.</div>
     </div>
-    <div id="view-alerts" class="view">
-      <div class="loader"></div>
-    </div>
+    <div id="view-alerts" class="view"><div class="loader"></div></div>
   </div>
 </div>
 
 <script>
 let G = { stop: null };
 
-// Horloge
 setInterval(() => { document.getElementById('clock').textContent = new Date().toLocaleTimeString('fr-FR'); }, 1000);
 
-// --- RECHERCHE ---
 const searchInput = document.getElementById('search');
 const suggBox = document.getElementById('sugg');
 
@@ -271,7 +288,6 @@ function selectGare(id, name) {
   loadData('departures');
 }
 
-// --- LOGIQUE DONNEES ---
 function loadData(type) {
   if(!G.stop) return;
   const list = document.getElementById('tlist');
@@ -281,11 +297,9 @@ function loadData(type) {
     .then(r => r.json())
     .then(data => {
       const items = data[type] || [];
-      
-      // Update KPIs
       document.getElementById('kpi-total').textContent = items.length;
-      document.getElementById('kpi-ok').textContent = items.filter(i => !i.stop_date_time.departure_delay).length;
-      document.getElementById('kpi-late').textContent = items.filter(i => i.stop_date_time.departure_delay > 0).length;
+      document.getElementById('kpi-ok').textContent = items.filter(i => (i.stop_date_time.departure_delay || 0) === 0).length;
+      document.getElementById('kpi-late').textContent = items.filter(i => (i.stop_date_time.departure_delay || 0) > 0).length;
 
       list.innerHTML = items.map(item => {
         const info = item.display_informations;
@@ -299,7 +313,6 @@ function loadData(type) {
             <span style="font-family:monospace;font-size:16px">\${timeStr.slice(0,2)}:\${timeStr.slice(2,4)}</span>
           </div>
           <div style="font-size:12px;margin-top:4px;color:#88a">Vers \${info.direction.split('(')[0]}</div>
-          \${dt.platform_code ? '<div style="margin-top:5px"><span style="background:#0f2040;color:#5ba3f5;padding:2px 6px;border-radius:4px;font-size:11px">VOIE ' + dt.platform_code + '</span></div>' : ''}
         </div>\`;
       }).join('');
     });
@@ -307,7 +320,6 @@ function loadData(type) {
 
 function trackTrain(vjId, headsign) {
   if(!vjId) return;
-  // Switch tab
   const tabs = document.querySelectorAll('.tab');
   switchTab(tabs[2]);
 
@@ -318,13 +330,8 @@ function trackTrain(vjId, headsign) {
     .then(r => r.json())
     .then(data => {
       const vj = data.vehicle_journeys[0];
-      area.innerHTML = \`<h2 style="margin-bottom:20px;color:var(--blue2)">Train \${headsign} <small style="color:var(--muted);font-weight:400">— Itinéraire</small></h2>
-        <div class="timeline">\` + 
-        vj.stop_times.map(st => \`
-          <div class="stop-row">
-            <span class="stop-time">\${st.arrival_time.slice(0,2)}:\${st.arrival_time.slice(2,4)}</span>
-            <strong>\${st.stop_point.name}</strong>
-          </div>\`).join('') + 
+      area.innerHTML = \`<h2 style="margin-bottom:20px;color:var(--blue2)">Train \${headsign}</h2><div class="timeline">\` + 
+        vj.stop_times.map(st => \`<div class="stop-row"><span class="stop-time">\${st.arrival_time.slice(0,2)}:\${st.arrival_time.slice(2,4)}</span><strong>\${st.stop_point.name}</strong></div>\`).join('') + 
         '</div>';
     });
 }
@@ -333,9 +340,7 @@ function switchTab(el) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
   el.classList.add('active');
-  const viewId = 'view-' + el.dataset.v;
-  document.getElementById(viewId).classList.add('active');
-  
+  document.getElementById('view-' + el.dataset.v).classList.add('active');
   if(el.dataset.v === 'arrivals') loadData('arrivals');
   if(el.dataset.v === 'departures') loadData('departures');
   if(el.dataset.v === 'alerts') loadAlerts();
@@ -343,20 +348,11 @@ function switchTab(el) {
 
 function loadAlerts() {
   const area = document.getElementById('view-alerts');
-  fetch('/api/disruptions')
-    .then(r => r.json())
-    .then(data => {
-      const alerts = data.disruptions || [];
-      area.innerHTML = '<h2 style="margin-bottom:20px">Alertes Trafic Réseau</h2>' + 
-        alerts.map(a => \`
-          <div style="background:var(--card);padding:15px;border-radius:8px;border-left:4px solid var(--orange);margin-bottom:12px">
-            <div style="font-weight:700;margin-bottom:5px">\${a.cause || 'Perturbation'}</div>
-            <div style="font-size:13px;line-height:1.4">\${a.messages?.[0]?.text || 'Aucune information détaillée.'}</div>
-          </div>\`).join('');
-    });
+  fetch('/api/disruptions').then(r => r.json()).then(data => {
+    const alerts = data.disruptions || [];
+    area.innerHTML = '<h2>Alertes Réseau</h2>' + alerts.map(a => \`<div style="background:var(--card);padding:15px;border-radius:8px;border-left:4px solid var(--orange);margin-bottom:12px"><strong>\${a.cause || 'Perturbation'}</strong><br>\${a.messages?.[0]?.text || ''}</div>\`).join('');
+  });
 }
-
-// Init
 loadAlerts();
 </script>
 </body>

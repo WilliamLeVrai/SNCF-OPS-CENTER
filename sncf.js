@@ -138,6 +138,7 @@ const server = http.createServer(async (req, res) => {
 
     if (path === "/api/places") {
       log("🔍", "Recherche: " + q.q);
+      // Correction du filtre pour être sûr de n'avoir que des gares (stop_area)
       data = await sncfGet("places?q=" + encodeURIComponent(q.q) + "&type[]=stop_area&count=8", "places");
       log("✅", (data.places||[]).length + " gare(s) [" + (stats.cached > 0 ? "cache" : "API") + "]");
     }
@@ -241,25 +242,24 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, async () => {
+server.listen(PORT, "0.0.0.0", async () => {
   console.log("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("🚄  SNCF OPS CENTER");
-  console.log("🌐  http://localhost:" + PORT);
+  console.log("🌐  Port: " + PORT);
   console.log("💾  Cache actif — économise vos 5000 requêtes/mois");
   console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   console.log("⏳  Test connexion SNCF...");
   try {
     const d = await sncfGet("places?q=paris&type[]=stop_area&count=1", "places");
-    if (d.places) console.log("✅  API SNCF OK ! Ouvre http://localhost:" + PORT + "\n");
-    else console.log("⚠️  Réponse inattendue:", JSON.stringify(d).slice(0, 80));
-  } catch(e) { console.log("❌  Erreur:", e.message + "\n"); }
-  console.log("📋  Requêtes en temps réel ici.\n");
+    if (d.places) console.log("✅  API SNCF OK !");
+    else console.log("⚠️  Réponse inattendue de l'API");
+  } catch(e) { console.log("❌  Erreur API:", e.message); }
 });
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // INTERFACE HTML
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const HTML = `<!DOCTYPE html>
+const HTML = \`<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
@@ -513,7 +513,6 @@ body{background:var(--bg);color:var(--text);font-family:"DM Sans",sans-serif;dis
 </head>
 <body>
 
-<!-- TOPBAR -->
 <div class="topbar">
   <div class="brand">🚄 <span>SNCF</span> OPS</div>
   <div class="clock" id="clock">--:--:--</div>
@@ -547,7 +546,6 @@ body{background:var(--bg);color:var(--text);font-family:"DM Sans",sans-serif;dis
 <div class="refresh-bar"><div class="refresh-prog" id="rprog"></div></div>
 
 <div class="workspace">
-  <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="sidebar-head">
       <div class="sidebar-gare" id="sgare">Aucune gare</div>
@@ -567,7 +565,6 @@ body{background:var(--bg);color:var(--text);font-family:"DM Sans",sans-serif;dis
     </div>
   </div>
 
-  <!-- DETAIL -->
   <div class="detail">
     <div class="vtabs">
       <div class="vtab active" data-v="train" onclick="switchVtab(this)">📍 Trajet</div>
@@ -737,19 +734,23 @@ async function doSearch(q){
   try{
     var r=await fetch("/api/places?q="+encodeURIComponent(q));
     var d=await r.json();
-    var stops = (d.places || []).map(function(p){
-  return p.stop_area || p;
-});
-    if(!stops.length){hideSugg();return;}
-    var html=stops.map(function(p){
-      var s=p.stop_area||p;
-      var reg=p.administrative_regions&&p.administrative_regions[0]&&p.administrative_regions[0].name||"";
-      return'<div class="sug" data-id="'+esc(s.id)+'" data-name="'+esc(p.name)+'">'
+    var rawPlaces = d.places || [];
+    if(!rawPlaces.length){hideSugg();return;}
+    
+    // Correction : L'API peut renvoyer soit directement stop_area, soit l'objet place
+    var html=rawPlaces.map(function(p){
+      var item = p.stop_area || p;
+      var name = p.name || item.name;
+      var id = item.id;
+      var reg = (p.administrative_regions && p.administrative_regions[0]) ? p.administrative_regions[0].name : "";
+      
+      return '<div class="sug" data-id="'+esc(id)+'" data-name="'+esc(name)+'">'
         +'<span style="color:var(--blue2);font-size:.8rem">📍</span>'
-        +'<span class="sug-name">'+esc(p.name)+'</span>'
+        +'<span class="sug-name">'+esc(name)+'</span>'
         +(reg?'<span class="sug-region">'+esc(reg)+'</span>':"")
         +'</div>';
     }).join("");
+    
     document.getElementById("sugg").innerHTML=html;
     document.getElementById("sugg").classList.add("on");
     document.querySelectorAll(".sug").forEach(function(el){
@@ -1275,4 +1276,6 @@ async function showTrain(vjId,hs,mode,dir,col){
 loadDisruptions();
 </script>
 </body>
-</html>`;
+</html>\`;
+
+}

@@ -737,7 +737,9 @@ async function doSearch(q){
   try{
     var r=await fetch("/api/places?q="+encodeURIComponent(q));
     var d=await r.json();
-    var stops=(d.places||[]).filter(function(p){return p.embedded_type==="stop_area";});
+    var stops = (d.places || []).map(function(p){
+  return p.stop_area || p;
+});
     if(!stops.length){hideSugg();return;}
     var html=stops.map(function(p){
       var s=p.stop_area||p;

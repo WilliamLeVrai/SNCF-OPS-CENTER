@@ -738,10 +738,14 @@ async function doSearch(q){
   try{
     var r=await fetch("/api/places?q="+encodeURIComponent(q));
     var d=await r.json();
-    var stops = (d.places || [])
+   var stops = (d.places || [])
   .filter(p => p.embedded_type === "stop_area")
-  .map(p => p.stop_area);
-});
+  .map(p => ({
+    id: p.stop_area.id,
+    name: p.stop_area.name,
+    label: p.stop_area.label,
+    coord: p.stop_area.coord
+  }));
     if(!stops.length){hideSugg();return;}
     var html=stops.map(function(p){
       var s=p.stop_area||p;

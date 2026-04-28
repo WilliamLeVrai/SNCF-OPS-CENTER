@@ -138,7 +138,7 @@ const server = http.createServer(async (req, res) => {
 
     if (path === "/api/places") {
       log("🔍", "Recherche: " + q.q);
-      data = await sncfGet("places?q=" + encodeURIComponent(q.q) + "&type[]=stop_area&count=8", "places");
+      data = await sncfGet("places?q=" + encodeURIComponent(q.q) + "&type%5B%5D=stop_area&count=8", "places");
       log("✅", (data.places||[]).length + " gare(s) [" + (stats.cached > 0 ? "cache" : "API") + "]");
     }
 
@@ -674,7 +674,7 @@ function tick(){
   var n=new Date();
   document.getElementById("clock").textContent=p2(n.getHours())+":"+p2(n.getMinutes())+":"+p2(n.getSeconds());
 }
-setInterval(tick,1000);tick();
+document.addEventListener("DOMContentLoaded",function(){tick();setInterval(tick,1000);});if(document.readyState!=="loading"){tick();setInterval(tick,1000);}
 
 // ── REFRESH BAR ──────────────────────────────────────
 function tickRefresh(){
@@ -737,9 +737,7 @@ async function doSearch(q){
   try{
     var r=await fetch("/api/places?q="+encodeURIComponent(q));
     var d=await r.json();
-    var stops = (d.places || []).filter(function(p){
-      return p.embedded_type === 'stop_area';
-    });
+    var stops = (d.places || []).filter(function(p){ return p.embedded_type === 'stop_area'; });
     if(!stops.length){hideSugg();return;}
     var html=stops.map(function(p){
       var s=p.stop_area||p;

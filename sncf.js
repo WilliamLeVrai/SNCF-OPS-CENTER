@@ -136,22 +136,23 @@ const server = http.createServer(async (req, res) => {
   try {
     let data;
 
-    if (path === "/api/places") {
-      log("🔍", "Recherche: " + q.q);
-      data = await sncfGet("places?q=" + encodeURIComponent(q.q) + "&type[]=stop_area&count=8", "places");
-      log("✅", (data.places||[]).length + " gare(s) [" + (stats.cached > 0 ? "cache" : "API") + "]");
-    }
+if (path === "/api/places") {
+  const query = (q.q || "").trim();
 
-    else if (path === "/api/departures") {
-      const dt = nowNavitia();
-      log("🚄", "Departs: " + (q.stop||"").slice(-20));
-      data = await sncfGet(
-        "stop_areas/" + encodeURIComponent(q.stop) +
-        "/departures?from_datetime=" + dt + "&count=40&data_freshness=realtime&depth=2",
-        "departures"
-      );
-      log("✅", (data.departures||[]).length + " depart(s)");
-    }
+  if (!query) {
+    res.end(JSON.stringify({ places: [] }));
+    return;
+  }
+
+  log("🔍", "Recherche: " + query);
+
+  data = await sncfGet(
+    "places?q=" + encodeURIComponent(query) + "&type[]=stop_area&count=8",
+    "places"
+  );
+
+  log("✅", (data.places || []).length + " gare(s)");
+}
 
     else if (path === "/api/arrivals") {
       const dt = nowNavitia();
@@ -737,8 +738,9 @@ async function doSearch(q){
   try{
     var r=await fetch("/api/places?q="+encodeURIComponent(q));
     var d=await r.json();
-    var stops = (d.places || []).map(function(p){
-  return p.stop_area || p;
+    var stops = (d.places || [])
+  .filter(p => p.embedded_type === "stop_area")
+  .map(p => p.stop_area);
 });
     if(!stops.length){hideSugg();return;}
     var html=stops.map(function(p){

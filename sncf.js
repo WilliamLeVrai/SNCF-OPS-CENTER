@@ -154,6 +154,21 @@ if (path === "/api/places") {
   log("✅", (data.places || []).length + " gare(s)");
 }
 
+  if (!query) {
+    res.end(JSON.stringify({ places: [] }));
+    return;
+  }
+
+  log("🔍", "Recherche: " + query);
+
+  data = await sncfGet(
+    "places?q=" + encodeURIComponent(query) + "&type[]=stop_area&count=8",
+    "places"
+  );
+
+  log("✅", (data.places || []).length + " gare(s)");
+}
+
     else if (path === "/api/arrivals") {
       const dt = nowNavitia();
       log("🚉", "Arrivees: " + (q.stop||"").slice(-20));

@@ -2,12 +2,11 @@ const http = require("http");
 const https = require("https");
 
 const PORT = process.env.PORT || 10000;
-
-// =====================
-// 🔧 CONFIG SNCF
-// =====================
 const API_KEY = process.env.SNCF_API_KEY || "TA_CLE_ICI";
 
+// =========================
+// 🔧 SNCF API WRAPPER
+// =========================
 function sncfGet(path) {
   return new Promise((resolve, reject) => {
     const options = {
@@ -20,6 +19,7 @@ function sncfGet(path) {
 
     https.get(options, (res) => {
       let data = "";
+
       res.on("data", chunk => data += chunk);
       res.on("end", () => {
         try {
@@ -32,9 +32,9 @@ function sncfGet(path) {
   });
 }
 
-// =====================
+// =========================
 // 🌐 SERVER
-// =====================
+// =========================
 const server = http.createServer(async (req, res) => {
   const urlObj = new URL(req.url, "http://localhost");
   const path = urlObj.pathname;
@@ -42,9 +42,9 @@ const server = http.createServer(async (req, res) => {
 
   res.setHeader("Access-Control-Allow-Origin", "*");
 
-  // =====================
-  // 🔍 API PLACES (FIXED)
-  // =====================
+  // =========================
+  // 🔍 SEARCH PLACES (GARES)
+  // =========================
   if (path === "/api/places") {
     const query = (q.q || "").trim();
 
@@ -55,7 +55,7 @@ const server = http.createServer(async (req, res) => {
 
     try {
       const data = await sncfGet(
-        "places?q=" + encodeURIComponent(query) + "&type[]=stop_area&count=8"
+        "places?q=" + encodeURIComponent(query) + "&type[]=stop_area&count=10"
       );
 
       res.setHeader("Content-Type", "application/json");
@@ -63,26 +63,28 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       res.end(JSON.stringify({ error: e.toString() }));
     }
-
     return;
   }
 
-  // =====================
-  // 🧾 HTML FRONT
-  // =====================
+  // =========================
+  // 🏠 FRONT
+  // =========================
   res.setHeader("Content-Type", "text/html");
   res.end(HTML);
 });
 
+// =========================
+// 🚀 START
+// =========================
 server.listen(PORT, () => {
   console.log("🚄 SNCF OPS CENTER");
   console.log("🌐 http://localhost:" + PORT);
 });
 
 
-// =====================
-// 🎨 FRONT HTML (FIXED)
-// =====================
+// =========================
+// 🎨 FRONTEND (PROPRE UI)
+// =========================
 const HTML = `
 <!DOCTYPE html>
 <html lang="fr">
@@ -93,17 +95,30 @@ const HTML = `
 <style>
 body {
   font-family: Arial;
-  padding: 20px;
+  background: #0f172a;
+  color: white;
+  padding: 40px;
+}
+
+h2 {
+  margin-bottom: 20px;
 }
 
 input {
-  padding: 10px;
-  width: 300px;
+  padding: 12px;
+  width: 350px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  font-size: 16px;
 }
 
 .sugg {
-  border: 1px solid #ccc;
-  width: 300px;
+  margin-top: 8px;
+  width: 350px;
+  background: #1e293b;
+  border-radius: 8px;
+  overflow: hidden;
   display: none;
 }
 
@@ -112,70 +127,78 @@ input {
 }
 
 .sug {
-  padding: 8px;
+  padding: 12px;
   cursor: pointer;
+  border-bottom: 1px solid #334155;
 }
 
 .sug:hover {
-  background: #eee;
+  background: #334155;
 }
 </style>
 </head>
 
 <body>
 
-<h2>Recherche gare</h2>
+<h2>🚄 Recherche de gares SNCF</h2>
 
-<input id="search" placeholder="Tape une gare...">
+<input id="search" placeholder="Tape une ville (ex: Reims)">
 <div id="sugg" class="sugg"></div>
 
 <script>
 const input = document.getElementById("search");
 const sugg = document.getElementById("sugg");
 
+let timer;
+
 input.addEventListener("input", () => {
 
-  const value = input.value.trim();
+  clearTimeout(timer);
 
-  if (!value) {
-    sugg.classList.remove("on");
-    return;
-  }
+  timer = setTimeout(() => {
 
-  fetch("/api/places?q=" + encodeURIComponent(value))
-    .then(r => r.json())
-    .then(d => {
+    const value = input.value.trim();
 
+    if (!value) {
+      sugg.classList.remove("on");
       sugg.innerHTML = "";
+      return;
+    }
 
-      const stops = (d.places || [])
-        .filter(p => p.embedded_type === "stop_area");
+    fetch("/api/places?q=" + encodeURIComponent(value))
+      .then(r => r.json())
+      .then(d => {
 
-      if (!stops.length) {
-        sugg.classList.remove("on");
-        return;
-      }
+        sugg.innerHTML = "";
 
-      stops.forEach(p => {
-        const name = p.stop_area.label;
+        const stops = (d.places || [])
+          .filter(p => p.embedded_type === "stop_area");
 
-        const div = document.createElement("div");
-        div.className = "sug";
-        div.textContent = name;
-
-        div.onclick = () => {
-          input.value = name;
+        if (!stops.length) {
           sugg.classList.remove("on");
-        };
+          return;
+        }
 
-        sugg.appendChild(div);
-      });
+        stops.forEach(p => {
+          const name = p.stop_area.label;
 
-      sugg.classList.add("on");
-    })
-    .catch(err => {
-      console.error(err);
-    });
+          const div = document.createElement("div");
+          div.className = "sug";
+          div.textContent = name;
+
+          div.onclick = () => {
+            input.value = name;
+            sugg.classList.remove("on");
+          };
+
+          sugg.appendChild(div);
+        });
+
+        sugg.classList.add("on");
+      })
+      .catch(err => console.error(err));
+
+  }, 200); // debounce
 });
 </script>
 
